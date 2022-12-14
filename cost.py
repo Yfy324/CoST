@@ -26,7 +26,7 @@ class PretrainDataset(Dataset):
         self.p = p
         self.sigma = sigma
         self.multiplier = multiplier
-        self.N, self.T, self.D = data.shape # num_ts, time, dim
+        self.N, self.T, self.D = data.shape  # num_ts, time, dim
 
     def __getitem__(self, item):
         ts = self.data[item % self.N]
@@ -62,11 +62,11 @@ class CoSTModel(nn.Module):
                  dim: Optional[int] = 128,
                  alpha: Optional[float] = 0.05,
                  K: Optional[int] = 65536,
-                 m: Optional[float] = 0.999,
+                 m: Optional[float] = 0.999,   # momentum
                  T: Optional[float] = 0.07):
         super().__init__()
 
-        self.K = K
+        self.K = K   # 应该是词典key的大小 >> batch_size
         self.m = m
         self.T = T
         self.device = device
@@ -75,10 +75,10 @@ class CoSTModel(nn.Module):
 
         self.alpha = alpha
 
-        self.encoder_q = encoder_q
+        self.encoder_q = encoder_q   # 结构一样 deepcopy
         self.encoder_k = encoder_k
 
-        # create the encoders
+        # create the encoders -- momentum, dynamic dictionary
         self.head_q = nn.Sequential(
             nn.Linear(dim, dim),
             nn.ReLU(),
@@ -104,12 +104,12 @@ class CoSTModel(nn.Module):
     def compute_loss(self, q, k, k_negs):
         # compute logits
         # positive logits: Nx1
-        l_pos = torch.einsum('nc,nc->n', [q, k]).unsqueeze(-1)
+        l_pos = torch.einsum('nc,nc->n', [q, k]).unsqueeze(-1)  # 内积，扩维
         # negative logits: NxK
-        l_neg = torch.einsum('nc,ck->nk', [q, k_negs])
+        l_neg = torch.einsum('nc,ck->nk', [q, k_negs])  # 矩阵乘法
 
         # logits: Nx(1+K)
-        logits = torch.cat([l_pos, l_neg], dim=1)
+        logits = torch.cat([l_pos, l_neg], dim=1)  # 行batch 列(pos_pairs;1 + neg_pairs;256)
 
         # apply temperature
         logits /= self.T
@@ -130,21 +130,21 @@ class CoSTModel(nn.Module):
         z = torch.cat([z1, z2], dim=0)  # 2B x T x C
         z = z.transpose(0, 1)  # T x 2B x C
         sim = torch.matmul(z, z.transpose(1, 2))  # T x 2B x 2B
-        logits = torch.tril(sim, diagonal=-1)[:, :, :-1]  # T x 2B x (2B-1)
-        logits += torch.triu(sim, diagonal=1)[:, :, 1:]
+        logits = torch.tril(sim, diagonal=-1)[:, :, :-1]  # T x 2B x (2B-1) 主对角线左下三角，去掉最后一列//都是0
+        logits += torch.triu(sim, diagonal=1)[:, :, 1:]   # 主对角线右上三角，去掉第一列 -- 两个相加 相当于mask主对角线(相同元素)
         logits = -F.log_softmax(logits, dim=-1)
 
         i = torch.arange(B, device=z1.device)
-        loss = (logits[:, i, B + i - 1].mean() + logits[:, B + i, i].mean()) / 2
+        loss = (logits[:, i, B + i - 1].mean() + logits[:, B + i, i].mean()) / 2  # 相当于取positive pair
         return loss
 
     def forward(self, x_q, x_k):
         # compute query features
-        rand_idx = np.random.randint(0, x_q.shape[1])
+        rand_idx = np.random.randint(0, x_q.shape[1])   # 0至shape中，随机x
 
-        q_t, q_s = self.encoder_q(x_q)
+        q_t, q_s = self.encoder_q(x_q)  # 得到trend(时域), Dropout_season(频域)
         if q_t is not None:
-            q_t = F.normalize(self.head_q(q_t[:, rand_idx]), dim=-1)
+            q_t = F.normalize(self.head_q(  q_t[:, rand_idx]), dim=-1)  # head_q([8,160]) 取第rand_idx时间步
 
         # compute key features
         with torch.no_grad():  # no gradient for keys
@@ -155,7 +155,7 @@ class CoSTModel(nn.Module):
 
         loss = 0
 
-        loss += self.compute_loss(q_t, k_t, self.queue.clone().detach())
+        loss += self.compute_loss(q_t, k_t, self.queue.clone().detach())   # 时域，trend; queue通过初始化得到
         self._dequeue_and_enqueue(k_t)
 
         q_s = F.normalize(q_s, dim=-1)
@@ -229,7 +229,7 @@ class CoST:
             kernels=kernels,
             length=max_train_length,
             hidden_dims=hidden_dims, depth=depth,
-        ).to(self.device)
+        ).to(self.device)   # 整个网络框架，encoder+sfd、tfd
 
         self.cost = CoSTModel(
             self.net,
@@ -239,7 +239,7 @@ class CoST:
             alpha=alpha,
             K=256,
             device=self.device,
-        ).to(self.device)
+        ).to(self.device)  # 在net的基础上，把net整体更新为momentum encoder，query随着网络loss更新，key动量更新
 
         self.after_iter_callback = after_iter_callback
         self.after_epoch_callback = after_epoch_callback
@@ -253,12 +253,12 @@ class CoST:
         if n_iters is None and n_epochs is None:
             n_iters = 200 if train_data.size <= 100000 else 600
 
-        if self.max_train_length is not None:
+        if self.max_train_length is not None:  # 第二维度对应timestep数，不超过最大length，超过的train -- 第一维堆叠
             sections = train_data.shape[1] // self.max_train_length
             if sections >= 2:
                 train_data = np.concatenate(split_with_nan(train_data, sections, axis=1), axis=0)
 
-        temporal_missing = np.isnan(train_data).all(axis=-1).any(axis=0)
+        temporal_missing = np.isnan(train_data).all(axis=-1).any(axis=0)  # 指定维度上是否all/any 有nan
         if temporal_missing[0] or temporal_missing[-1]:
             train_data = centerize_vary_length_series(train_data)
                 
@@ -361,15 +361,15 @@ class CoST:
                     if n_samples < batch_size:
                         calc_buffer = []
                         calc_buffer_l = 0
-                    for i in range(0, ts_l, sliding_length):
+                    for i in range(0, ts_l, sliding_length):  # length-1 padding-2047
                         l = i - sliding_padding
                         r = i + sliding_length + (sliding_padding if not casual else 0)
                         x_sliding = torch_pad_nan(
                             x[:, max(l, 0) : min(r, ts_l)],
-                            left=-l if l<0 else 0,
+                            left=-l if l<0 else 0,  # l/r 控制z
                             right=r-ts_l if r>ts_l else 0,
                             dim=1
-                        )
+                        )  # 对axis=1 前max_train_length维度填充nan，data第一个是时序部为最后一维
                         if n_samples < batch_size:
                             if calc_buffer_l + n_samples > batch_size:
                                 out = self._eval_with_pooling(
@@ -419,7 +419,7 @@ class CoST:
                 
             output = torch.cat(output, dim=0)
 
-        self.net.train(org_training)
+        self.net.train(org_training)  # 设置为True模式
         return output.numpy()
     
     def save(self, fn):

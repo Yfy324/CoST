@@ -6,7 +6,7 @@ from . import _eval_protocols as eval_protocols
 def generate_pred_samples(features, data, pred_len, drop=0):
     n = data.shape[1]
     features = features[:, :-pred_len]
-    labels = np.stack([ data[:, i:1+n+i-pred_len] for i in range(pred_len)], axis=2)[:, 1:]
+    labels = np.stack([data[:, i:1+n+i-pred_len] for i in range(pred_len)], axis=2)[:, 1:]
     features = features[:, drop:]
     labels = labels[:, drop:]
     return features.reshape(-1, features.shape[-1]), \
@@ -28,8 +28,8 @@ def eval_forecasting(model, data, train_slice, valid_slice, test_slice, scaler, 
         mode='forecasting',
         casual=True,
         sliding_length=1,
-        sliding_padding=padding,
-        batch_size=256
+        sliding_padding=padding,  # 2047 应该是考虑了生成features前，用nan padding了 -- causal理解！
+        batch_size=128
     )
 
     train_repr = all_repr[:, train_slice]
@@ -67,7 +67,7 @@ def eval_forecasting(model, data, train_slice, valid_slice, test_slice, scaler, 
             test_pred_inv = scaler.inverse_transform(test_pred.swapaxes(0, 3)).swapaxes(0, 3)
             test_labels_inv = scaler.inverse_transform(test_labels.swapaxes(0, 3)).swapaxes(0, 3)
         else:
-            test_pred_inv = scaler.inverse_transform(test_pred)
+            test_pred_inv = scaler.inverse_transform(test_pred)   # 训练数据ds
             test_labels_inv = scaler.inverse_transform(test_labels)
         out_log[pred_len] = {
             'norm': test_pred,

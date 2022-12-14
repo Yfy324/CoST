@@ -52,21 +52,21 @@ class BandedFourierLayer(nn.Module):
         self.end = self.start + self.num_freqs
 
 
-        # case: from other frequencies
+        # case: from other frequencies  含义是将一个固定不可训练的tensor转换成可以训练的类型parameter，并将其绑定到module里面
         self.weight = nn.Parameter(torch.empty((self.num_freqs, in_channels, out_channels), dtype=torch.cfloat))
-        self.bias = nn.Parameter(torch.empty((self.num_freqs, out_channels), dtype=torch.cfloat))
-        self.reset_parameters()
+        self.bias = nn.Parameter(torch.empty((self.num_freqs, out_channels), dtype=torch.cfloat))  # empty 返回填充有未初始化数据的张量。 张量的形状由可变的参数大小定义
+        self.reset_parameters()  # 初始化lias
 
     def forward(self, input):
         # input - b t d
         b, t, _ = input.shape
         input_fft = fft.rfft(input, dim=1)
         output_fft = torch.zeros(b, t // 2 + 1, self.out_channels, device=input.device, dtype=torch.cfloat)
-        output_fft[:, self.start:self.end] = self._forward(input_fft)
-        return fft.irfft(output_fft, n=input.size(1), dim=1)
+        output_fft[:, self.start:self.end] = self._forward(input_fft)  # 得到pre-element linear layer的输出
+        return fft.irfft(output_fft, n=input.size(1), dim=1)  # ifft
 
-    def _forward(self, input):
-        output = torch.einsum('bti,tio->bto', input[:, self.start:self.end], self.weight)
+    def _forward(self, input):  # per-element linear layer
+        output = torch.einsum('bti,tio->bto', input[:, self.start:self.end], self.weight)  # 恢复为张量计算 https://blog.csdn.net/beilizhang/article/details/114631973
         return output + self.bias
 
     def reset_parameters(self) -> None:
@@ -95,7 +95,7 @@ class CoSTEncoder(nn.Module):
 
         self.feature_extractor = DilatedConvEncoder(
             hidden_dims,
-            [hidden_dims] * depth + [output_dims],
+            [hidden_dims] * depth + [output_dims],   # 元素加入列表
             kernel_size=3
         )
 
@@ -103,9 +103,9 @@ class CoSTEncoder(nn.Module):
 
         self.kernels = kernels
 
-        self.tfd = nn.ModuleList(
+        self.tfd = nn.ModuleList(   # out_dim = (in_dim-kernel+2*padding)/stride + 1
             [nn.Conv1d(output_dims, component_dims, k, padding=k-1) for k in kernels]
-        )
+        )   # https://zhuanlan.zhihu.com/p/75206669#:~:text=ModuleList%20can%20be%20indexed%20like%20a%20regular%20Python,and%20will%20be%20visible%20by%20all%20Module%20methods.
 
         self.sfd = nn.ModuleList(
             [BandedFourierLayer(output_dims, component_dims, b, 1, length=length) for b in range(1)]
@@ -128,15 +128,15 @@ class CoSTEncoder(nn.Module):
         elif mask == 'continuous':
             mask = generate_continuous_mask(x.size(0), x.size(1)).to(x.device)
         elif mask == 'all_true':
-            mask = x.new_full((x.size(0), x.size(1)), True, dtype=torch.bool)
+            mask = x.new_full((x.size(0), x.size(1)), True, dtype=torch.bool)  # tensor尺寸，填充True
         elif mask == 'all_false':
             mask = x.new_full((x.size(0), x.size(1)), False, dtype=torch.bool)
         elif mask == 'mask_last':
             mask = x.new_full((x.size(0), x.size(1)), True, dtype=torch.bool)
             mask[:, -1] = False
 
-        mask &= nan_mask
-        x[~mask] = 0
+        mask &= nan_mask  # 与运算
+        x[~mask] = 0  # ~mask对应x的元素位为True，该元素值置0
 
         # conv encoder
         x = x.transpose(1, 2)  # B x Ch x T
@@ -146,20 +146,20 @@ class CoSTEncoder(nn.Module):
             return x.transpose(1, 2)
 
         trend = []
-        for idx, mod in enumerate(self.tfd):
+        for idx, mod in enumerate(self.tfd):  # 时域 -- trend
             out = mod(x)  # b d t
             if self.kernels[idx] != 1:
-                out = out[..., :-(self.kernels[idx] - 1)]
+                out = out[..., :-(self.kernels[idx] - 1)]  # 把out最后一个轴的维度压缩到max_train_length(time series轴)
             trend.append(out.transpose(1, 2))  # b t d
         trend = reduce(
             rearrange(trend, 'list b t d -> list b t d'),
             'list b t d -> b t d', 'mean'
-        )
+        )  # 从list:8 -- 求mean -- 变为一个tensor
 
         x = x.transpose(1, 2)  # B x T x Co
 
         season = []
-        for mod in self.sfd:
+        for mod in self.sfd:  # 频域 -- seasonal
             out = mod(x)  # b t d
             season.append(out)
         season = season[0]

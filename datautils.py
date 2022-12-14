@@ -31,13 +31,13 @@ def _get_time_features(dt):
     ], axis=1).astype(np.float)
 
 def load_forecast_csv(name, univar=False):
-    data = pd.read_csv(f'datasets/{name}.csv', index_col='date', parse_dates=True)
-    dt_embed = _get_time_features(data.index)
+    data = pd.read_csv(f'datasets/{name}.csv', index_col='date', parse_dates=True)  # p_d 尝试解析index为日期格式
+    dt_embed = _get_time_features(data.index)  # (1, time-series, variables)
     n_covariate_cols = dt_embed.shape[-1]
     
     if univar:
         if name in ('ETTh1', 'ETTh2', 'ETTm1', 'ETTm2'):
-            data = data[['OT']]
+            data = data[['OT']]   #  target forecasting: oil temperature
         elif name == 'electricity':
             data = data[['MT_001']]
         elif name == 'WTH':
@@ -47,7 +47,7 @@ def load_forecast_csv(name, univar=False):
 
     data = data.to_numpy()
     if name == 'ETTh1' or name == 'ETTh2':
-        train_slice = slice(None, 12 * 30 * 24)
+        train_slice = slice(None, 12 * 30 * 24)    # data[slice]: 去data的行
         valid_slice = slice(12 * 30 * 24, 16 * 30 * 24)
         test_slice = slice(16 * 30 * 24, 20 * 30 * 24)
     elif name == 'ETTm1' or name == 'ETTm2':
@@ -63,8 +63,8 @@ def load_forecast_csv(name, univar=False):
         valid_slice = slice(int(0.6 * len(data)), int(0.8 * len(data)))
         test_slice = slice(int(0.8 * len(data)), None)
     
-    scaler = StandardScaler().fit(data[train_slice])
-    data = scaler.transform(data)
+    scaler = StandardScaler().fit(data[train_slice])  # 计算矩阵每一列平均值和方差
+    data = scaler.transform(data)  # 根据均值和方差，将矩阵转标准化
     if name in ('electricity') or name.startswith('M5'):
         data = np.expand_dims(data.T, -1)  # Each variable is an instance rather than a feature
     else:
@@ -72,7 +72,7 @@ def load_forecast_csv(name, univar=False):
 
     if n_covariate_cols > 0:
         dt_scaler = StandardScaler().fit(dt_embed[train_slice])
-        dt_embed = np.expand_dims(dt_scaler.transform(dt_embed), 0)
+        dt_embed = np.expand_dims(dt_scaler.transform(dt_embed), 0)  # data axis=-1的最后一维度是预测量，前7个是协变量        data = np.concatenate([np.repeat(dt_embed, data.shape[0], axis=0), data], axis=-1)  # 把data、dt_embed按照最后一个维度concat
         data = np.concatenate([np.repeat(dt_embed, data.shape[0], axis=0), data], axis=-1)
 
     if name in ('ETTh1', 'ETTh2', 'electricity', 'WTH'):

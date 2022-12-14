@@ -102,7 +102,7 @@ def init_dl_program(
         seed += 1
         np.random.seed(seed)
         seed += 1
-        torch.manual_seed(seed)
+        torch.manual_seed(seed)   # 设置CPU生成随机数的种子
         
     if isinstance(device_name, (str, int)):
         device_name = [device_name]
@@ -117,13 +117,13 @@ def init_dl_program(
             if seed is not None:
                 seed += 1
                 torch.cuda.manual_seed(seed)
-    devices.reverse()
+    devices.reverse()   # 列表元素反向排序
     torch.backends.cudnn.enabled = use_cudnn
     torch.backends.cudnn.deterministic = deterministic
     torch.backends.cudnn.benchmark = benchmark
     
     if hasattr(torch.backends.cudnn, 'allow_tf32'):
-        torch.backends.cudnn.allow_tf32 = use_tf32
+        torch.backends.cudnn.allow_tf32 = use_tf32  # 控制 TensorFloat-32 张量核心是否可用于 Ampere 或更新 GPU 上的矩阵乘法的布尔值
         torch.backends.cuda.matmul.allow_tf32 = use_tf32
         
     return devices if len(devices) > 1 else devices[0]
