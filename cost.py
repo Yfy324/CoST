@@ -12,6 +12,8 @@ from einops import rearrange, repeat, reduce
 
 from models.encoder import CoSTEncoder
 from utils import take_per_row, split_with_nan, centerize_vary_length_series, torch_pad_nan
+import time
+import datetime
 
 
 class PretrainDataset(Dataset):
@@ -274,7 +276,7 @@ class CoST:
                                     weight_decay=1e-4)
         
         loss_log = []
-        
+        print('Start training')
         while True:
             if n_epochs is not None and self.n_epochs >= n_epochs:
                 break
@@ -283,6 +285,7 @@ class CoST:
             n_epoch_iters = 0
             
             interrupted = False
+            t = time.time()
             for batch in train_loader:
                 if n_iters is not None and self.n_iters >= n_iters:
                     interrupted = True
@@ -311,14 +314,16 @@ class CoST:
 
                 if n_iters is not None:
                     adjust_learning_rate(optimizer, self.lr, self.n_iters, n_iters)
-            
+
+            t = time.time() - t
+
             if interrupted:
                 break
             
             cum_loss /= n_epoch_iters
             loss_log.append(cum_loss)
             if verbose:
-                print(f"Epoch #{self.n_epochs}: loss={cum_loss}")
+                print(f"Epoch #{self.n_epochs}: loss={cum_loss}, time={datetime.timedelta(seconds=t)}")
             self.n_epochs += 1
 
             if self.after_epoch_callback is not None:
@@ -326,7 +331,8 @@ class CoST:
 
             if n_epochs is not None:
                 adjust_learning_rate(optimizer, self.lr, self.n_epochs, n_epochs)
-            
+
+            torch.cuda.empty_cache()
         return loss_log
     
     def _eval_with_pooling(self, x, mask=None, slicing=None, encoding_window=None):

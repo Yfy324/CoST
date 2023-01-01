@@ -1,3 +1,4 @@
+
 import argparse
 import os
 import time
@@ -43,7 +44,7 @@ if __name__ == '__main__':
     parser.add_argument('--repr-dims', type=int, default=320, help='The representation dimension (defaults to 320)')
     parser.add_argument('--max-train-length', type=int, default=2048,
                         help='For sequence with a length greater than <max_train_length>, it would be cropped into some sequences, each of which has a length less than <max_train_length> (defaults to 3000)')
-    parser.add_argument('--iters', type=int, default=200, help='The number of iterations')
+    parser.add_argument('--iters', type=int, default=None, help='The number of iterations')
     parser.add_argument('--epochs', type=int, default=200, help='The number of epochs')   # None
     parser.add_argument('--save-every', type=int, default=None,
                         help='Save the checkpoint every <save_every> iterations/epochs')

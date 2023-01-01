@@ -1,6 +1,10 @@
 import numpy as np
 import time
-from . import _eval_protocols as eval_protocols
+import datetime
+# from . import _eval_protocols as eval_protocols
+from pyod.models.iforest import IForest
+from pyod.utils.data import evaluate_print
+import torch
 
 
 def generate_pred_samples(features, data, pred_len, drop=0):
@@ -13,11 +17,47 @@ def generate_pred_samples(features, data, pred_len, drop=0):
             labels.reshape(-1, labels.shape[2]*labels.shape[3])
 
 
+def generate_pred_bearing(features, data, pred_len, drop=0):
+    n = data.shape[0]
+    features = features[:, :-pred_len]
+    labels = np.stack([data[i:1+n+i-pred_len, :] for i in range(pred_len)], axis=2)[1:]
+    features = features[:, drop:]
+    labels = labels[:, drop:]
+    return features.reshape(-1, features.shape[-1]), \
+            labels.reshape(-1, labels.shape[-1]*labels.shape[-2])
+
+
 def cal_metrics(pred, target):
     return {
         'MSE': ((pred - target) ** 2).mean(),
         'MAE': np.abs(pred - target).mean()
     }
+
+
+def eval_bearing(model, data, length, sliding_length):
+    t = time.time()
+    padding = length - sliding_length
+    all_repr = model.encode(
+        data,
+        mode='forecasting',
+        casual=True,
+        sliding_length=sliding_length,
+        sliding_padding=padding,  # 2047 应该是考虑了生成features前，用nan padding了 -- causal理解！
+        batch_size=128
+    )
+
+    all_repr = all_repr.reshape(-1, all_repr.shape[-1])
+
+    encoder_infer_time = time.time() - t
+    print(f"\nEncoding time: {datetime.timedelta(seconds=encoder_infer_time)}\n")
+
+    clf = IForest(random_state=0)
+    clf = clf.fit(all_repr)
+    y_train_pred = clf.labels_
+    print(np.where(y_train_pred == 1)[0][0])  # the first 1/detection
+    y_train_scores = clf.decision_scores_
+
+    return all_repr
 
 
 def eval_forecasting(model, data, train_slice, valid_slice, test_slice, scaler, pred_lens, n_covariate_cols, padding):
@@ -41,7 +81,7 @@ def eval_forecasting(model, data, train_slice, valid_slice, test_slice, scaler, 
     test_data = data[:, test_slice, n_covariate_cols:]
 
     encoder_infer_time = time.time() - t
-    
+
     ours_result = {}
     lr_train_time = {}
     lr_infer_time = {}
@@ -67,7 +107,7 @@ def eval_forecasting(model, data, train_slice, valid_slice, test_slice, scaler, 
             test_pred_inv = scaler.inverse_transform(test_pred.swapaxes(0, 3)).swapaxes(0, 3)
             test_labels_inv = scaler.inverse_transform(test_labels.swapaxes(0, 3)).swapaxes(0, 3)
         else:
-            test_pred_inv = scaler.inverse_transform(test_pred)   # 训练数据ds
+            test_pred_inv = scaler.inverse_transform(test_pred)  # 训练数据ds
             test_labels_inv = scaler.inverse_transform(test_labels)
         out_log[pred_len] = {
             'norm': test_pred,
@@ -79,7 +119,7 @@ def eval_forecasting(model, data, train_slice, valid_slice, test_slice, scaler, 
             'norm': cal_metrics(test_pred, test_labels),
             'raw': cal_metrics(test_pred_inv, test_labels_inv)
         }
-        
+
     eval_res = {
         'ours': ours_result,
         'encoder_infer_time': encoder_infer_time,
