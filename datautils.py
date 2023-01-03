@@ -91,8 +91,11 @@ def load_forecast_csv(name, univar=False):
 def load_forecast_bearing(name, univar=False, sc=True):  # sc for signal channel. T for horizontal (F -- vertical)
     n_covariate_cols = 0
     # data = np.load('/data/yfy/FD-data/RUL/xjtu2_2560.npy', allow_pickle=True).item()
-    data = np.load('/data/yfy/FD-data/RUL/phm_dict.npy', allow_pickle=True).item()
-    data = data['Bearing1_5'].astype(float)   # num, 2560, 2
+    # data = np.load('/data/yfy/FD-data/RUL/phm_dict.npy', allow_pickle=True).item()
+    # data = data['Bearing1_6'].astype(float)   # num, 2560, 2
+
+    data = np.load('/data/yfy/FD-data/RUL/phm_14.npy', allow_pickle=True).item()
+    data = data['Bearing1_4'].astype(float)
 
     if univar:
         if sc:

@@ -29,7 +29,7 @@ def save_checkpoint_callback(
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', help='The dataset name', default='XJTU')
+    parser.add_argument('--dataset', help='The dataset name', default='PHM')
     parser.add_argument('--run_name',
                         help='The folder name used to save model, output and evaluation metrics. This can be set to any word',
                         default='test')
@@ -40,12 +40,12 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', type=int, default=0,
                         help='The gpu no. used for training and inference (defaults to 0)')
     parser.add_argument('--batch-size', type=int, default=64, help='The batch size (defaults to 8)')
-    parser.add_argument('--lr', type=float, default=0.01, help='The learning rate (defaults to 0.007)')
+    parser.add_argument('--lr', type=float, default=0.005, help='The learning rate (defaults to 0.007)')
     parser.add_argument('--repr-dims', type=int, default=100, help='The representation dimension (defaults to 320)')
     parser.add_argument('--max-train-length', type=int, default=2560,  # 2048
                         help='For sequence with a length greater than <max_train_length>, it would be cropped into some sequences, each of which has a length less than <max_train_length> (defaults to 3000)')
     parser.add_argument('--iters', type=int, default=None, help='The number of iterations')
-    parser.add_argument('--epochs', type=int, default=300, help='The number of epochs')   # None
+    parser.add_argument('--epochs', type=int, default=500, help='The number of epochs')   # None
     parser.add_argument('--save-every', type=int, default=None,
                         help='Save the checkpoint every <save_every> iterations/epochs')
     parser.add_argument('--seed', type=int, default=0, help='The random seed')  # None

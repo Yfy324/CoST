@@ -20,7 +20,8 @@ all_models = {'iforest': 'IForest', 'ocsvm': 'OCSVM', 'abod': 'ABOD', 'cblof': '
               'mo_gaal': 'MO_GAAL', 'xgbod': 'XGBOD', 'deep_svdd': 'DeepSVDD'}
 
 dataset_list = ['xjtu1-1']
-model_dict = {'iforest': 'IForest', 'cof': 'COF', 'feature_bagging': 'FeatureBagging', 'lof': 'LOF'}
+model_dict = {'iforest': 'IForest', 'cof': 'COF', 'feature_bagging': 'FeatureBagging',
+              'lof': 'LOF'}
 # save the results
 
 # seed for reproducible results
@@ -34,8 +35,8 @@ for dataset in dataset_list:
     noise_type: inject data noises for testing model robustness, can be duplicated_anomalies, irrelevant_features or label_contamination
     '''
 
-    # data = pd.read_csv(r'/data/yfy/FD-data/RUL/cost_rep.csv', header=None)
-    data = pd.read_csv(r'/home/yfy/Desktop/project/AD/contrastive/CoST/training/XJTU/test_20230102_212555/cost_rep100.csv', header=None)
+    # data = pd.read_csv(r'/home/yfy/Desktop/project/AD/contrastive/CoST/training/XJTU/test_20221231_213901/cost_rep100.csv', header=None)
+    data = pd.read_csv(r'/home/yfy/Desktop/project/AD/contrastive/CoST/training/PHM/test_20230103_201020/cost_rep100.csv', header=None)
     data = np.array(data)
     y = np.zeros(data.shape[0])
     y[889:] = 1
@@ -43,8 +44,9 @@ for dataset in dataset_list:
     for k, v in model_dict.items():
         # model initialization
         o = importlib.import_module("pyod.models."+k)
-        # clf = getattr(o, v)(random_state=seed, contamination=0.38)
-        clf = getattr(o, v)(contamination=0.08)  # 0.08
+        clf = getattr(o, v)(random_state=seed, contamination=0.24, max_samples=1., n_estimators=25)  # iforest conta=0.38
+        # clf = getattr(o, v)(n_neighbors=180, contamination=0.08)  # LOF
+        # clf = getattr(o, v)(contamination=0.08)  # 0.08
         # training, for unsupervised models the y label will be discarded
         clf = clf.fit(data)
 
