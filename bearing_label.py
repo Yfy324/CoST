@@ -54,7 +54,7 @@ all_models = {'iforest': 'IForest', 'ocsvm': 'OCSVM', 'abod': 'ABOD', 'cblof': '
               'mo_gaal': 'MO_GAAL', 'xgbod': 'XGBOD', 'deep_svdd': 'DeepSVDD'}
 
 dataset_list = ['xjtu1-1']
-model_dict = {#'iforest': 'IForest', 'cof': 'COF', 'feature_bagging': 'FeatureBagging',
+model_dict = {'iforest': 'IForest', 'cof': 'COF', 'feature_bagging': 'FeatureBagging',
               'lof': 'LOF'}
 # save the results
 
@@ -71,8 +71,8 @@ for dataset in dataset_list:
     noise_type: inject data noises for testing model robustness, can be duplicated_anomalies, irrelevant_features or label_contamination
     '''
 
-    # data = pd.read_csv(r'/home/yfy/Desktop/project/AD/contrastive/CoST/training/XJTU/test_20230102_200048/cost_rep100.csv', header=None)
-    data = pd.read_csv(r'/home/yfy/Desktop/project/AD/contrastive/CoST/training/PHM/test_20230107_201733/cost_rep100.csv', header=None)
+    data = pd.read_csv(r'/home/yfy/Desktop/project/AD/contrastive/CoST/training/XJTU/test_20221231_231454/cost_rep100.csv', header=None)
+    # data = pd.read_csv(r'/home/yfy/Desktop/project/AD/contrastive/CoST/training/PHM/test_20230107_225820/cost_rep100.csv', header=None)
     data = np.array(data)
     y = np.zeros(data.shape[0])
     y[956:] = 1
@@ -80,9 +80,9 @@ for dataset in dataset_list:
     for k, v in model_dict.items():
         # model initialization
         o = importlib.import_module("pyod.models."+k)
-        # clf = getattr(o, v)(random_state=seed, contamination=0.08, max_samples=1.) #, n_estimators=25)  # iforest conta=0.38/0.24
+        clf = getattr(o, v)(random_state=seed, contamination=0.08, max_samples=1.) #, n_estimators=25)  # iforest conta=0.38/0.24
         # clf = getattr(o, v)(n_neighbors=180, contamination=0.06)  # LOF
-        clf = getattr(o, v)(contamination=0.1)  # 0.08
+        # clf = getattr(o, v)(contamination=0.1)  # 0.08
         # training, for unsupervised models the y label will be discarded
         clf = clf.fit(data)
 
@@ -108,16 +108,16 @@ for dataset in dataset_list:
 
         all_avg = np.array(all_avg)
 
-        avg = 0
-        m_avg = []
-        for i in range(len(y_score[v])):
-            avg = (y_score[v][i] + i * avg) / (i + 1)
-            m_avg.append(avg)
+        # avg = 0
+        # m_avg = []
+        # for i in range(len(y_score[v])):
+        #     avg = (y_score[v][i] + i * avg) / (i + 1)
+        #     m_avg.append(avg)
 
-        m_avg = np.array(m_avg)
+        # m_avg = np.array(m_avg)
 
         gap_avg = []
-        gap = 5
+        gap = 10
         re = y_train_scores.shape[0] % gap
         remain = y_train_scores.shape[0] - re - gap
         for i in range(0, remain, gap):
@@ -127,8 +127,13 @@ for dataset in dataset_list:
         gap_avg.append(np.mean(y_train_scores[-re:]))
         gap_avg = np.array(gap_avg)
 
+        # m_avg = []
         # for i in index:
-        #     if i <= 697:
+        #     if i <= data.shape[0]-5:
+        #         m_avg.append(np.mean(y_train_scores[i-5:i+5]))
+        #
+        # m_avg = np.array(m_avg)
+
 
         # critic = Fpr()
         # fpr95 = critic.evaluate(y, y_train_scores)
@@ -138,9 +143,9 @@ for dataset in dataset_list:
         plt.plot(range(data.shape[0]), all_avg)
         plt.show()
 
-        plt.figure()
-        plt.plot(range(index.shape[0]), m_avg)
-        plt.show()
+        # plt.figure()
+        # plt.plot(range(m_avg.shape[0]), m_avg)
+        # plt.show()
 
         plt.figure()
         plt.plot(range(gap_avg.shape[0]), gap_avg)
