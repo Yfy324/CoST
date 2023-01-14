@@ -6,6 +6,13 @@ import warnings
 #  necessary package
 import importlib
 from pyod.utils.data import evaluate_print
+from pyod.models.base import BaseDetector
+from pyod.models.lof import LOF
+from pyod.models.hbos import HBOS
+from pyod.models.iforest import IForest
+from pyod.models.copod import COPOD
+from pyod.models.cof import COF
+from pyod.models.feature_bagging import FeatureBagging
 import random
 from fpr import Fpr
 from pyod.utils.example import visualize
@@ -75,11 +82,11 @@ for dataset in dataset_list:
     noise_type: inject data noises for testing model robustness, can be duplicated_anomalies, irrelevant_features or label_contamination
     '''
 
-    data = pd.read_csv(r'/home/yfy/Desktop/project/AD/contrastive/CoST/training/XJTU/test_20230102_212555/cost_rep100.csv', header=None)
-    # data = pd.read_csv(r'/home/yfy/Desktop/project/AD/contrastive/CoST/training/PHM/test_20230107_225820/cost_rep100.csv', header=None)
+    # data = pd.read_csv(r'/home/yfy/Desktop/project/AD/contrastive/CoST/training/XJTU/test_20230102_231937/cost_rep100.csv', header=None)
+    data = pd.read_csv(r'/home/yfy/Desktop/project/AD/contrastive/CoST/training/PHM/test_20230113_193500/cost_rep100.csv', header=None)
     data = np.array(data)
     y = np.zeros(data.shape[0])
-    y[641:] = 1
+    y[120:] = 1
     # xtrain = np.concatenate((data[:100], data[-100:]), axis=0)
     # ytrain = np.zeros(100)
     # ytrain[100:] = 1
@@ -87,9 +94,18 @@ for dataset in dataset_list:
     for k, v in model_dict.items():
         # model initialization
         o = importlib.import_module("pyod.models."+k)
-        # clf = getattr(o, v)(random_state=seed, contamination=0.4, max_samples=1.)  #, n_estimators=25)  # iforest conta=0.38/0.24
+        # clf = getattr(o, v)(random_state=seed, contamination=0.1, max_samples=1.)  #, n_estimators=25)  # iforest conta=0.38/0.24
         # clf = getattr(o, v)(n_neighbors=180, contamination=0.06)  # LOF
-        clf = getattr(o, v)(contamination=0.2)  # 0.08
+        clf = getattr(o, v)(contamination=0.08,
+                            base_estimators=[LOF(n_neighbors=15),
+                                             LOF(n_neighbors=20),
+                                             # HBOS(n_bins=10), HBOS(n_bins=20), COPOD(),
+                                             IForest(n_estimators=50, max_samples=1.),
+                                             IForest(n_estimators=100, max_samples=1.),
+                                             IForest(n_estimators=150, max_samples=1.),
+                                             FeatureBagging()])
+
+        # clf = getattr(o, v)(contamination=0.4)  # 0.08
         # training, for unsupervised models the y label will be discarded
         clf = clf.fit(data)
 
@@ -102,8 +118,8 @@ for dataset in dataset_list:
         y_train_scores = clf.decision_scores_  # raw outlier scores
         y_score[v] = y_train_scores[index]
 
-        # desc_score_indices[v] = np.argsort(y_train_scores, kind="mergesort")[::-1]
-        # scores = y_train_scores[desc_score_indices[v]]
+        desc_score_indices[v] = np.argsort(y_train_scores, kind="mergesort")[::-1]
+        scores = y_train_scores[desc_score_indices[v]]
         # high = np.mean(scores[:20])
         # low = np.mean(scores[-20:])
 
@@ -145,28 +161,34 @@ for dataset in dataset_list:
         # critic = Fpr()
         # fpr95 = critic.evaluate(y, y_train_scores)
 
-        # y1 = all_avg[800:]
+        # y1 = all_avg[:300]
+        # y1 = y_train_scores[:300]
+        # x1 = range(300)
         # x1 = range(800, data.shape[0], 1)
         plt.figure()
-        plt.plot(range(data.shape[0]), all_avg)
+        plt.plot(range(data.shape[0]), y_train_scores)
         # plt.plot(x1, y1)
         plt.show()
 
-        # y3 = m_avg[:810]
-        # x3 = range(810)
-        # x3 = range(810, m_avg.shape[0], 1)
+        y3 = m_avg[90:200]
+        x3 = range(90, 200, 1)
+        # x3 = range(1300, m_avg.shape[0], 1)
+        plt.figure()
+        # plt.plot(range(m_avg.shape[0]), m_avg)
+        plt.plot(x3, y3)
+        plt.show()
+
         plt.figure()
         plt.plot(range(m_avg.shape[0]), m_avg)
-        # plt.plot(x3, y3)
         plt.show()
 
         # y2 = gap_avg[:81]
         # x2 = range(81)
-        # x2 = range(81, gap_avg.shape[0], 1)
-        plt.figure()
-        plt.plot(range(gap_avg.shape[0]), gap_avg)
-        # plt.plot(x2, y2)
-        plt.show()
+        # # x2 = range(81, gap_avg.shape[0], 1)
+        # plt.figure()
+        # plt.plot(range(gap_avg.shape[0]), gap_avg)
+        # # plt.plot(x2, y2)
+        # plt.show()
 
         # plt.figure()
         # plt.hist(y_train_scores, bins=10)
@@ -177,6 +199,8 @@ for dataset in dataset_list:
         # y_test_scores = clf.decision_function(data)  # outlier scores
 
         # evaluate and print the results
+
+
         print("On Training Data:")
         evaluate_print(k, y, y_train_scores)
         # print("\nOn Test Data:")
