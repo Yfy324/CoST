@@ -1,4 +1,3 @@
-
 import argparse
 import os
 import time
@@ -29,7 +28,7 @@ def save_checkpoint_callback(
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', help='The dataset name', default='PHM')
+    parser.add_argument('--dataset', help='The dataset name', default='XJTU')
     parser.add_argument('--run_name',
                         help='The folder name used to save model, output and evaluation metrics. This can be set to any word',
                         default='test')
@@ -40,29 +39,31 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', type=int, default=0,
                         help='The gpu no. used for training and inference (defaults to 0)')
     parser.add_argument('--batch-size', type=int, default=64, help='The batch size (defaults to 8)')
-    parser.add_argument('--lr', type=float, default=0.005, help='The learning rate (defaults to 0.007)')
+    parser.add_argument('--lr', type=float, default=0.005, help='The learning rate (defaults to 0.007,0.005)')
     parser.add_argument('--repr-dims', type=int, default=100, help='The representation dimension (defaults to 320)')
     parser.add_argument('--max-train-length', type=int, default=2560,  # 2048
                         help='For sequence with a length greater than <max_train_length>, it would be cropped into some sequences, each of which has a length less than <max_train_length> (defaults to 3000)')
     parser.add_argument('--iters', type=int, default=None, help='The number of iterations')
-    parser.add_argument('--epochs', type=int, default=500, help='The number of epochs')   # None
+    parser.add_argument('--epochs', type=int, default=300, help='The number of epochs')  # None
     parser.add_argument('--save-every', type=int, default=None,
                         help='Save the checkpoint every <save_every> iterations/epochs')
     parser.add_argument('--seed', type=int, default=0, help='The random seed')  # None
     parser.add_argument('--max-threads', type=int, default=None,
                         help='The maximum allowed number of threads used by this process')
-    parser.add_argument('--eval', action="store_true", help='Whether to perform evaluation after training', default='True')
+    parser.add_argument('--eval', action="store_true", help='Whether to perform evaluation after training',
+                        default='True')
 
     parser.add_argument('--kernels', type=int, nargs='+', default=[1, 2, 4, 8, 16, 32],  # 32, 64, 128
                         help='The kernel sizes used in the mixture of AR expert layers  # default to 128')
-    parser.add_argument('--alpha', type=float, default=0.0005, help='Weighting hyperparameter for loss function/default 0.0005')
+    parser.add_argument('--alpha', type=float, default=0.0005,
+                        help='Weighting hyperparameter for loss function/default 0.0005')
 
     args = parser.parse_args()
 
     print("Dataset:", args.dataset)
     print("Arguments:", str(args))
 
-    device = init_dl_program(args.gpu, seed=args.seed, max_threads=args.max_threads)   # 设置cuda、随机数种子等
+    device = init_dl_program(args.gpu, seed=args.seed, max_threads=args.max_threads)  # 设置cuda、随机数种子等
 
     if args.archive == 'forecast_bearing':
         task_type = 'forecasting'
@@ -107,7 +108,7 @@ if __name__ == '__main__':
         input_dims=train_data.shape[-1],
         kernels=args.kernels,
         alpha=args.alpha,
-        max_train_length=args.max_train_length,   # None, 涉及将长时序划分为小段
+        max_train_length=args.max_train_length,  # None, 涉及将长时序划分为小段
         device=device,
         **config
     )
@@ -128,7 +129,7 @@ if __name__ == '__main__':
             out = tasks.eval_bearing(model, train_data, args.max_train_length, 2560)
         else:
             out, eval_res = tasks.eval_forecasting(model, data, train_slice, valid_slice, test_slice, scaler, pred_lens,
-                                               n_covariate_cols, args.max_train_length-1)
+                                                   n_covariate_cols, args.max_train_length - 1)
         # print('Evaluation result:', eval_res)
         # pkl_save(f'{run_dir}/eval_res.pkl', eval_res)
         # pkl_save(f'{run_dir}/out.pkl', out)
